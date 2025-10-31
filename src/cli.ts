@@ -19,6 +19,7 @@ if (argv.config) {
   config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 }
 
+// 除了rrwebPlayer的config在player.config.json中,其余config在video.config.json中填写
 transformToVideo({
   input: argv.input,
   output: argv.output,

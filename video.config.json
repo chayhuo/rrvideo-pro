@@ -1,0 +1,8 @@
+{
+  "skipInactive": true,
+  "startDelayTime": 0,
+  "mouseTail": {
+    "strokeStyle": "green",
+    "lineWidth": 0
+  }
+}

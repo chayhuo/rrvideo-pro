@@ -1,0 +1,11 @@
+{
+  "mouseTail": false,
+  "speed": 1,
+  "insertStyleRules": [
+    "button { transition: all 0.3s ease !important; position: relative !important; overflow: visible !important; }",
+    "button:focus, button:active { background-color: #10b981 !important; color: white !important; transform: scale(0.95) !important; box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.9) !important; box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.9), 0 0 0 10px rgba(16, 185, 129, 0.7), 0 0 0 15px rgba(16, 185, 129, 0.5), 0 0 0 20px rgba(16, 185, 129, 0.3) !important; outline: none !important; }",
+    "button:hover { background-color: #059669 !important; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4) !important; }",
+    "button::after { content: \"\" !important; position: absolute !important; top: 50% !important; left: 50% !important; width: 0 !important; height: 0 !important; border-radius: 50% !important; background: rgba(16, 185, 129, 0.5) !important; transition: width 0.4s, height 0.4s !important; transform: translate(-50%, -50%) !important; z-index: -1 !important; }",
+    "button:active::after { width: 400px !important; height: 400px !important; }"
+  ]
+}

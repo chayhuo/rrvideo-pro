@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
 import puppeteer from "puppeteer";
-import type { eventWithTime } from "rrweb/typings/types";
+// import type { eventWithTime } from "rrweb/typings/types";
 import type { RRwebPlayerOptions } from "rrweb-player";
 import type { Page, Browser } from "puppeteer";
 
@@ -19,7 +19,7 @@ interface Config {
 } 
 
 function getHtml(
-  events: Array<eventWithTime>,
+  events: Array<any>,
   config?: Omit<RRwebPlayerOptions["props"] & Config, "events">
 ): string {
   return `
@@ -73,19 +73,23 @@ function getHtml(
 type RRvideoConfig = {
   fps: number;
   headless: boolean;
+  chromePath?: string;
   input: string;
   cb: (file: string, error: null | Error) => void;
   output: string;
   rrwebPlayer: Omit<RRwebPlayerOptions["props"] & Config, "events">;
+  videoBitrate?: string;
 };
 
 const defaultConfig: RRvideoConfig = {
-  fps: 15,
+  fps: 30, // 提高帧率到30fps以获得更流畅的视频
   headless: true,
+  chromePath:"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   input: "",
   cb: () => {},
   output: "rrvideo-output.mp4",
   rrwebPlayer: {},
+  videoBitrate: "2000k", // 优化比特率平衡质量和流畅度
 };
 
 class RRvideo {
@@ -98,10 +102,12 @@ class RRvideo {
     this.config = {
       fps: config?.fps || defaultConfig.fps,
       headless: config?.headless || defaultConfig.headless,
+      chromePath: config?.chromePath || defaultConfig.chromePath,
       input: config?.input || defaultConfig.input,
       cb: config?.cb || defaultConfig.cb,
       output: config?.output || defaultConfig.output,
       rrwebPlayer: config?.rrwebPlayer || defaultConfig.rrwebPlayer,
+      videoBitrate: config?.videoBitrate || defaultConfig.videoBitrate,
     };
   }
 
@@ -109,8 +115,11 @@ class RRvideo {
     try {
       this.browser = await puppeteer.launch({
         headless: this.config.headless,
+        executablePath: this.config.chromePath,
       });
       this.page = await this.browser.newPage();
+      // 使用整数倍设备缩放因子避免渲染问题
+      await this.page.setViewport({width: 1920,height: 1080,deviceScaleFactor: 2});
       await this.page.goto("about:blank");
 
       await this.page.exposeFunction("onReplayStart", () => {
@@ -125,10 +134,9 @@ class RRvideo {
         ? this.config.input
         : path.resolve(process.cwd(), this.config.input);
       const events = JSON.parse(fs.readFileSync(eventsPath, "utf-8"));
-
       await this.page.setContent(getHtml(events, this.config.rrwebPlayer));
     } catch (error) {
-      this.config.cb("", error);
+      this.config.cb("", error as any);
     }
   }
 
@@ -149,17 +157,46 @@ class RRvideo {
       // fps
       "-framerate",
       this.config.fps.toString(),
-      // input
+      // input - 使用image2pipe格式输入PNG图像
       "-f",
       "image2pipe",
       "-i",
       "-",
-      // output
+      // 视频编码器设置 - 使用h264编码
+      "-c:v",
+      "libx264",
+      // 质量参数 - 使用合理的CRF值平衡质量和流畅度
+      "-crf",
+      "18", // 使用CRF 18获得高质量但更流畅的编码
+      // 编码预设 - 使用中等预设获得更好的流畅度
+      "-preset",
+      "medium",
+      // 确保关键帧足够频繁，有利于Seek操作
+      "-g",
+      (this.config.fps).toString(), // 减少关键帧间隔提高流畅度
+      // 使用zerolatency调优设置，降低延迟
+      "-tune",
+      "zerolatency",
+      // 输出设置
       "-y",
+      // 使用合理的比特率设置
+      "-b:v",
+      this.config.videoBitrate,
+      // 添加最大比特率和缓冲设置
+      "-maxrate",
+      this.config.videoBitrate,
+      "-bufsize",
+      (parseInt(this.config.videoBitrate!.replace('k', '')) * 2) + 'k',
+      // 添加流畅度优化参数
+      "-threads",
+      "0", // 使用所有可用线程
+      "-movflags",
+      "+faststart", // 优化网络播放
+
       this.config.output,
     ];
 
-    const ffmpegProcess = spawn("ffmpeg", args);
+    const ffmpegProcess = spawn("ffmpeg", args as any);
     ffmpegProcess.stderr.setEncoding("utf-8");
     ffmpegProcess.stderr.on("data", console.log);
 
@@ -168,6 +205,7 @@ class RRvideo {
     const timer = setInterval(async () => {
       if (this.state === "recording" && !processError) {
         try {
+          // 使用基本截图设置避免兼容性问题
           const buffer = await wrapperEl.screenshot({
             encoding: "binary",
           });
